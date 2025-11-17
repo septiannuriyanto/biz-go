@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: none;
+        stroke-width: 16px;
+      }
+
+      .cls-1, .cls-2 {
+        stroke: #fff;
+        stroke-miterlimit: 10;
+      }
+
+      .cls-3, .cls-2 {
+        fill: #2b54fa;
+      }
+
+      .cls-2 {
+        stroke-width: .5px;
+      }
+
+      .cls-4 {
+        fill: #fff;
+      }
+    </style>
+  </defs>
+  <g id="Layer_1-2" data-name="Layer 1">
+    <g>
+      <rect class="cls-3" x="8" y="8" width="240" height="240"/>
+      <rect class="cls-2" x="8" y="88" width="80" height="80"/>
+      <rect class="cls-2" x="8" y="8" width="80" height="80"/>
+      <rect class="cls-2" x="8" y="168" width="80" height="80"/>
+      <rect class="cls-2" x="88" y="88" width="80" height="80"/>
+      <rect class="cls-2" x="88" y="8" width="80" height="80"/>
+      <rect class="cls-2" x="88" y="168" width="80" height="80"/>
+      <rect class="cls-2" x="168" y="88" width="80" height="80"/>
+      <rect class="cls-2" x="168" y="8" width="80" height="80"/>
+      <rect class="cls-2" x="168" y="168" width="80" height="80"/>
+      <g>
+        <line class="cls-1" x1="248" y1="8" x2="168" y2="8"/>
+        <line class="cls-1" x1="248" y1="88" x2="248" y2="8"/>
+      </g>
+      <g>
+        <line class="cls-1" x1="8" y1="248" x2="88" y2="248"/>
+        <line class="cls-1" x1="8" y1="168" x2="8" y2="248"/>
+      </g>
+      <g>
+        <line class="cls-1" x1="8" y1="8" x2="8" y2="88"/>
+        <line class="cls-1" x1="88" y1="8" x2="8" y2="8"/>
+      </g>
+      <g>
+        <line class="cls-1" x1="248" y1="248" x2="248" y2="168"/>
+        <line class="cls-1" x1="168" y1="248" x2="248" y2="248"/>
+      </g>
+      <path class="cls-4" d="M133.39,203.3c-20.13-.53-37.03-7.63-50.7-21.3-13.67-13.67-20.5-30.3-20.5-49.91V60.9h71.2c17.91,0,33.85,6.2,47.84,18.6,3.18,2.86,6.09,5.99,8.74,9.38l-33.69,33.69h47.68c.42,3.18.64,6.36.64,9.54,0,19.6-6.97,36.37-20.9,50.3s-30.7,20.9-50.3,20.9ZM129.41,122.56l33.54-33.54c-9.01-6.14-18.86-9.22-29.56-9.22h-52.29v42.75h48.32ZM133.39,184.39c12.82,0,23.94-4.03,33.38-12.08,9.43-8.05,15.42-18.28,17.96-30.67h-102.67c2.54,12.4,8.53,22.62,17.96,30.67,9.43,8.05,20.55,12.08,33.38,12.08Z"/>
+    </g>
+  </g>
+</svg>
