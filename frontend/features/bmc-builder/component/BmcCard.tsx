@@ -54,7 +54,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ children, content }) => {
       {visible &&
         createPortal(
           <div
-            className="fixed z-[9999] -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-md whitespace-nowrap pointer-events-none"
+            className="fixed z-9999 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded shadow-md whitespace-nowrap pointer-events-none"
             style={{ top: pos.top, left: pos.left }}
           >
             {content}
@@ -88,7 +88,6 @@ export const BmcCard: React.FC<BmcCardProps> = ({
   onAdd,
   onUpdate,
   onRemove,
-  lastAddedId,
   isTall = false,
   isHalf = false,
   isBottom = false,
