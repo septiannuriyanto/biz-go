@@ -453,7 +453,7 @@ export default function AboutPage() {
           {/* CTA Buttons */}
           <div className="space-y-3 w-full">
             <a
-              href="https://github.com/septiannuriyanto/biz-go/blob/main/CONTRIBUTING.md"
+              href="https://github.com/septiannuriyanto/biz-go/frontend/Contributing.md"
               target="_blank"
               rel="noopener noreferrer"
               className="block w-full px-4 py-2 bg-linear-to-r from-blue-600 to-purple-600 
