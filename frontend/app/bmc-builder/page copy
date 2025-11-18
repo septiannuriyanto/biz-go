@@ -1,0 +1,590 @@
+"use client";
+import React, {
+  useState,
+  ReactNode,
+  useRef,
+  useEffect,
+  useCallback,
+} from "react";
+import Header from "@/components/Header";
+import { BmcData, BmcItem, BmcSection, DEFAULT_BMC } from "@/features/bmc-builder/types/bmc.types";
+
+interface ApiResponse {
+  bmcJson: Omit<BmcData, "keyResources">;
+  rawText: string;
+}
+
+interface BmcCardProps {
+  title: string;
+  section: BmcSection;
+  items: BmcItem[];
+  onAdd: () => void;
+  onUpdate: (section: BmcSection, id: string, text: string) => void;
+  onRemove: (section: BmcSection, id: string) => void;
+  lastAddedId: string | null;
+}
+
+
+
+function uid(prefix: string = "id"): string {
+  return prefix + Math.random().toString(36).slice(2, 9);
+}
+
+const STORAGE_KEY = "bmc_builder_data";
+
+// --- UTILITY COMPONENTS ---
+
+interface TooltipProps {
+  children: ReactNode;
+  content: string;
+}
+
+const Tooltip: React.FC<TooltipProps> = ({ children, content }) => (
+  <div className="group relative flex items-center">
+    {children}
+    <span
+      className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 scale-0 
+                 transition-all rounded-md bg-gray-800 p-2 text-xs text-white 
+                 group-hover:scale-100 z-50 whitespace-nowrap"
+    >
+      {content}
+    </span>
+  </div>
+);
+
+interface IconButtonProps {
+  icon: string;
+  onClick: () => void;
+  tooltip: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+const IconButton: React.FC<IconButtonProps> = ({
+  icon,
+  onClick,
+  tooltip,
+  disabled,
+  className = "",
+}) => (
+  <Tooltip content={tooltip}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`p-2 rounded-full text-xl text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition ${className}`}
+    >
+      {icon}
+    </button>
+  </Tooltip>
+);
+
+// --- MODAL KONFIRMASI RESET ---
+
+interface ResetModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirmSoftReset: () => void;
+  onConfirmHardReset: () => void;
+}
+
+const ResetModal: React.FC<ResetModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirmSoftReset,
+  onConfirmHardReset,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-2xl p-6 max-w-sm w-full">
+        <h3 className="text-xl font-bold text-red-600 mb-4 border-b pb-2">
+          Konfirmasi Reset Kanvas
+        </h3>
+
+        <p className="mb-4 text-gray-700">
+          Pilih jenis reset yang Anda inginkan:
+        </p>
+
+        <div className="space-y-3">
+          <button
+            onClick={onConfirmSoftReset}
+            className="w-full py-2 px-4 rounded-lg bg-yellow-500 text-white font-medium hover:bg-yellow-600 transition"
+          >
+            Reset Kanvas Saja (Data LocalStorage Aman)
+          </button>
+
+          <button
+            onClick={onConfirmHardReset}
+            className="w-full py-2 px-4 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition"
+          >
+            <span className="font-extrabold">
+              Hapus SEMUA Record (Hapus LocalStorage)
+            </span>
+          </button>
+        </div>
+
+        <p className="mt-4 text-xs text-gray-500 bg-red-50 p-2 rounded">
+          ⚠️ Peringatan: Menekan tombol **Hapus SEMUA Record** akan{" "}
+          <span className="font-bold">menghapus permanen</span> semua data yang
+          tersimpan di browser Anda untuk BMC ini.
+        </p>
+
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={onClose}
+            className="py-1 px-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition"
+          >
+            Batal
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- MAIN BUILDER COMPONENT ---
+export default function BmcBuilder() {
+  const [input, setInput] = useState<string>("");
+  const [bmc, setBmc] = useState<BmcData>(DEFAULT_BMC);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [raw, setRaw] = useState<string>("");
+  const [lastAddedId, setLastAddedId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // --- PERSISTENCE ---
+  useEffect(() => {
+    const storedData = localStorage.getItem(STORAGE_KEY);
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData);
+        const loadedBmc: BmcData = { ...DEFAULT_BMC, ...parsedData.bmc };
+        setBmc(loadedBmc);
+        setInput(parsedData.input || "");
+        setRaw(parsedData.raw || "");
+      } catch (error) {
+        console.error("Gagal memuat data dari LocalStorage", error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const dataToStore = {
+      bmc,
+      input,
+      raw,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToStore));
+  }, [bmc, input, raw]);
+
+  // --- HANDLERS ---
+  const handleFocusScroll = useCallback(() => {
+    if (inputRef.current) {
+      const offset = 20;
+      const rect = inputRef.current.getBoundingClientRect();
+      const targetPosition = window.scrollY + rect.top - offset;
+
+      window.scrollTo({
+        top: targetPosition,
+        behavior: "smooth",
+      });
+    }
+  }, []);
+
+  async function handleGenerate(): Promise<void> {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: input }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data: ApiResponse = await res.json();
+
+      const newBmc: BmcData = {
+        ...DEFAULT_BMC,
+        ...data.bmcJson,
+      };
+
+      setBmc(newBmc);
+      setRaw(data.rawText || "");
+    } catch (e) {
+      alert("Gagal generate: " + (e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function addItem(section: BmcSection): void {
+    const newId = uid(section);
+    const copy = { ...bmc };
+    const arr = [...(copy[section] || [])];
+    arr.push({ id: newId, text: "" });
+    copy[section] = arr;
+    setBmc(copy);
+    setLastAddedId(newId);
+  }
+
+  function updateItem(section: BmcSection, id: string, text: string): void {
+    const copy = { ...bmc };
+    copy[section] = copy[section].map((it) =>
+      it.id === id ? { ...it, text } : it
+    );
+    setBmc(copy);
+  }
+
+  // ✅ FIXED: Fokus hilang setelah hapus record dengan backspace
+  function removeItem(section: BmcSection, id: string): void {
+    const copy = { ...bmc };
+
+    // Hapus item (tanpa fokus otomatis)
+    copy[section] = copy[section].filter((it) => it.id !== id);
+    setBmc(copy);
+
+    // Blur fokus agar tidak ke-trigger input lain
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    // Reset lastAddedId
+    setLastAddedId(null);
+  }
+
+  function exportJSON(): void {
+    const blob = new Blob([JSON.stringify(bmc, null, 2)], {
+      type: "application/json",
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "bmc.json";
+    a.click();
+  }
+
+  // --- RESET LOGIC ---
+  const handleSoftReset = () => {
+    setInput("");
+    setBmc(DEFAULT_BMC);
+    setRaw("");
+    setIsModalOpen(false);
+  };
+
+  const handleHardReset = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    handleSoftReset();
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center w-full">
+      {/* Modal Konfirmasi */}
+      <ResetModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirmSoftReset={handleSoftReset}
+        onConfirmHardReset={handleHardReset}
+      />
+
+      <div className="mx-auto w-full">
+        <Header/>
+
+        <div className="hero_description my-10">
+          <p className="text-md text-gray-500 text-center">
+          Welcome to
+        </p>
+        <p className="text-3xl font-bold text-gray-500 text-center">
+          Business Canvas Model Builder
+        </p>
+
+        <p className="text-md text-gray-500 text-center">
+          Bangun Business Model Canvas dalam hitungan detik. Tulis ide bisnismu, biarkan AI merangkumnya menjadi kanvas yang rapi dan siap diekspor.
+        </p>
+        </div>
+
+        {/* INPUT SECTION */}
+        <div className="max-w-7xl w-full mx-8">
+          <div className="mt-8 mb-8 flex flex-col items-center">
+          <div className="w-full max-w-2xl bg-white rounded-full shadow-lg hover:shadow-xl transition flex items-center p-1 border border-gray-100">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onFocus={handleFocusScroll}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !loading) handleGenerate();
+              }}
+              className="flex-grow p-3 px-6 text-base rounded-l-full focus:outline-none placeholder-gray-500"
+              placeholder="Jelaskan bisnismu (tekan Enter untuk Generate)"
+            />
+
+            <IconButton
+              icon="🔄"
+              onClick={() => setIsModalOpen(true)}
+              tooltip="Reset Kanvas & Input"
+              className="flex-shrink-0"
+            />
+
+            <button
+              className="px-6 py-2 rounded-full bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 transition flex-shrink-0 ml-1"
+              onClick={handleGenerate}
+              disabled={loading}
+            >
+              {loading ? "..." : "✨ Generate"}
+            </button>
+          </div>
+        </div>
+
+        {/* BMC CANVAS LAYOUT (9 Blocks) */}
+        <div className="grid grid-cols-5 gap-3 h-[70vh]">
+          {/* Baris Tengah */}
+          <div className="col-span-1 flex flex-col">
+            <BmcCard
+              title="1. Key Partners"
+              section="keyPartners"
+              items={bmc.keyPartners}
+              onAdd={() => addItem("keyPartners")}
+              onUpdate={updateItem}
+              onRemove={removeItem}
+              isTall={true}
+              lastAddedId={lastAddedId}
+            />
+          </div>
+
+          <div className="col-span-1 flex flex-col space-y-3">
+            <BmcCard
+              title="2. Key Activities"
+              section="keyActivities"
+              items={bmc.keyActivities}
+              onAdd={() => addItem("keyActivities")}
+              onUpdate={updateItem}
+              onRemove={removeItem}
+              isHalf={true}
+              lastAddedId={lastAddedId}
+            />
+            <BmcCard
+              title="3. Key Resources"
+              section="keyResources"
+              items={bmc.keyResources}
+              onAdd={() => addItem("keyResources")}
+              onUpdate={updateItem}
+              onRemove={removeItem}
+              isHalf={true}
+              lastAddedId={lastAddedId}
+            />
+          </div>
+
+          <div className="col-span-1 flex flex-col">
+            <BmcCard
+              title="4. Value Propositions"
+              section="valuePropositions"
+              items={bmc.valuePropositions}
+              onAdd={() => addItem("valuePropositions")}
+              onUpdate={updateItem}
+              onRemove={removeItem}
+              isTall={true}
+              lastAddedId={lastAddedId}
+            />
+          </div>
+
+          <div className="col-span-1 flex flex-col space-y-3">
+            <BmcCard
+              title="5. Customer Relationships"
+              section="customerRelationships"
+              items={bmc.customerRelationships}
+              onAdd={() => addItem("customerRelationships")}
+              onUpdate={updateItem}
+              onRemove={removeItem}
+              isHalf={true}
+              lastAddedId={lastAddedId}
+            />
+            <BmcCard
+              title="6. Channels"
+              section="channels"
+              items={bmc.channels}
+              onAdd={() => addItem("channels")}
+              onUpdate={updateItem}
+              onRemove={removeItem}
+              isHalf={true}
+              lastAddedId={lastAddedId}
+            />
+          </div>
+
+          <div className="col-span-1 flex flex-col">
+            <BmcCard
+              title="7. Customer Segments"
+              section="customerSegments"
+              items={bmc.customerSegments}
+              onAdd={() => addItem("customerSegments")}
+              onUpdate={updateItem}
+              onRemove={removeItem}
+              isTall={true}
+              lastAddedId={lastAddedId}
+            />
+          </div>
+
+          {/* Baris Bawah */}
+          <div className="col-span-3">
+            <BmcCard
+              title="8. Cost Structure"
+              section="costStructure"
+              items={bmc.costStructure}
+              onAdd={() => addItem("costStructure")}
+              onUpdate={updateItem}
+              onRemove={removeItem}
+              isBottom={true}
+              lastAddedId={lastAddedId}
+            />
+          </div>
+
+          <div className="col-span-2">
+            <BmcCard
+              title="9. Revenue Streams"
+              section="revenueStreams"
+              items={bmc.revenueStreams}
+              onAdd={() => addItem("revenueStreams")}
+              onUpdate={updateItem}
+              onRemove={removeItem}
+              isBottom={true}
+              lastAddedId={lastAddedId}
+            />
+          </div>
+        </div>
+
+        {/* BOTTOM SECTION */}
+        <div className="mt-8 flex justify-between items-end">
+          <button
+            className="px-5 py-2 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition flex-shrink-0"
+            onClick={exportJSON}
+          >
+            📥 Export BMC ke JSON
+          </button>
+
+          <div className="w-1/2">
+            <h2 className="text-xl font-light text-gray-700">
+              Raw LLM Output (Debugging)
+            </h2>
+            <pre className="p-3 bg-gray-100 border rounded-lg h-24 overflow-auto text-sm mt-2">
+              {raw}
+            </pre>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- BmcCard Component ---
+function BmcCard({
+  title,
+  section,
+  items,
+  onAdd,
+  onUpdate,
+  onRemove,
+  isTall = false,
+  isHalf = false,
+  isBottom = false,
+  lastAddedId,
+}: BmcCardProps & {
+  isTall?: boolean;
+  isHalf?: boolean;
+  isBottom?: boolean;
+  lastAddedId: string | null;
+}) {
+  const itemRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+
+  // Auto-focus untuk item baru
+  useEffect(() => {
+    if (lastAddedId && itemRefs.current[lastAddedId]) {
+      itemRefs.current[lastAddedId]?.focus();
+    }
+  }, [lastAddedId]);
+
+  // ✅ FIXED: Blur dulu sebelum hapus dengan backspace
+  const handleItemKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    item: BmcItem
+  ) => {
+    const currentIndex = items.findIndex((i) => i.id === item.id);
+    const itemTextLength = (e.target as HTMLInputElement).value.length;
+
+    // ENTER KEY: Tambah item baru atau pindah ke item berikutnya
+    if (e.key === "Enter") {
+      e.preventDefault();
+
+      if (currentIndex === items.length - 1 || items.length === 0) {
+        onAdd();
+      } else {
+        const nextItem = items[currentIndex + 1];
+        if (nextItem && itemRefs.current[nextItem.id]) {
+          itemRefs.current[nextItem.id]?.focus();
+        }
+      }
+      return;
+    }
+
+    // BACKSPACE DELETE: Blur dulu, baru hapus
+    if (e.key === "Backspace" && itemTextLength === 0) {
+      e.preventDefault();
+
+      // Blur input saat ini untuk lose focus
+      (e.target as HTMLInputElement).blur();
+
+      // Hapus record saat ini
+      onRemove(section, item.id);
+    }
+  };
+
+  let heightClass = "";
+  if (isTall || isHalf || isBottom) {
+    heightClass = "h-full";
+  }
+
+  return (
+    <div
+      className={`p-3 border border-gray-300 rounded-lg bg-white ${heightClass} flex flex-col transition duration-150 ease-in-out`}
+    >
+      {/* Header */}
+      <div className="flex justify-between items-center mb-2 border-b border-gray-100 pb-2">
+        <h3 className="font-semibold text-base text-gray-800">{title}</h3>
+        <button
+          className="text-xs px-2 py-1 rounded-md text-blue-600 hover:bg-blue-50 transition border border-transparent hover:border-blue-200"
+          onClick={onAdd}
+        >
+          + Add
+        </button>
+      </div>
+
+      {/* Content List */}
+      <div className="space-y-2 text-sm flex-grow overflow-hidden">
+        {items.length === 0 && (
+          <div className="text-xs text-gray-400 italic p-1">
+            Klik + Add atau gunakan generator.
+          </div>
+        )}
+        {items.map((it) => (
+          <div key={it.id} className="flex gap-2 items-start">
+            <input
+              ref={(el) => {
+                itemRefs.current[it.id] = el;
+              }}
+              className="flex-1 p-1 border-b border-gray-200 focus:border-blue-400 outline-none text-sm bg-transparent transition duration-100"
+              value={it.text}
+              onChange={(e) => onUpdate(section, it.id, e.target.value)}
+              onKeyDown={(e) => handleItemKeyDown(e, it)}
+            />
+            <button
+              className="mt-1 text-gray-400 hover:text-red-500 transition flex-shrink-0"
+              onClick={() => onRemove(section, it.id)}
+            >
+              <span className="text-lg leading-none">×</span>
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

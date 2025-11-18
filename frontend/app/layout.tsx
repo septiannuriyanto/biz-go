@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   description: "A business management app for small businesses.",
 };
 
+export const runtime = "edge"; // or "nodejs"
+
+
 export default function RootLayout({
   children,
 }: Readonly<{
